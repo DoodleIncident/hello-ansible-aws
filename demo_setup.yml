@@ -1,0 +1,48 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: False
+
+  vars:
+    ami_id: ami-0cf31d971a3ca20d6
+  vars_files:
+    - /home/noodle/secrets/ansible/external_vars.yml
+
+  tasks:
+
+    - name: Provision a set of instances
+      ec2:
+        aws_access_key: "{{ec2_access_key}}"
+        aws_secret_key: "{{ec2_secret_key}}"
+        region: us-east-2
+        key_name: manual_key
+        group: test
+        instance_type: t2.micro
+        image: "{{ ami_id }}"
+        wait: true
+        exact_count: 5
+        count_tag:
+          Name: Demo
+        instance_tags:
+          Name: Demo
+      register: ec2
+
+    - name: Add all instance pubilc IPs to host group
+      add_host: hostname={{ item.public_ip }} groups=ec2hosts
+      loop: "{{ ec2.instances }}"
+
+- hosts: ec2hosts
+  name: configuration play
+  user: ec2-user
+  gather_facts: false
+
+  tasks:
+
+    - name: Wait for instances to come online
+      wait_for_connection:
+
+    - name: Gather facts
+      setup:
+
+    - name: Check NTP service
+      service: name=chronyd state=started
